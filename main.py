@@ -2,6 +2,13 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 
 
+"""One image summing up the world's news of 25 November 2026.
+
+A dark newsroom-style 1024x1024 poster drawn entirely with Pillow:
+a central globe, six story cards and a bottom ticker. No network,
+no randomness, no timestamps, so two runs produce byte-identical PNGs.
+"""
+
 W, H = 1024, 1024
 BG = (10, 14, 26)
 GOLD = (240, 192, 96)
@@ -229,6 +236,7 @@ def draw_card(draw, x, y, w, h, emoji, title, source, emoji_font, title_font, so
     draw.text((x + 16, y + h - 32), source, font=source_font, fill=SOURCE_COLOR)
 
 
+# Assemble the full poster: header, globe, six story cards, then the ticker.
 def build():
     img = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)

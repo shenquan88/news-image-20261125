@@ -1,0 +1,6 @@
+kit/
+output/
+_codex*
+main.dinggao.py
+__pycache__/
+*.pyc

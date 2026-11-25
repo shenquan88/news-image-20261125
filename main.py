@@ -2,11 +2,11 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 
 
-"""One image summing up the world's news of 25 November 2026.
+"""Generates the entry for the make.fun news-image contest.
 
-A dark newsroom-style 1024x1024 poster drawn entirely with Pillow:
-a central globe, six story cards and a bottom ticker. No network,
-no randomness, no timestamps, so two runs produce byte-identical PNGs.
+A single 1024x1024 square covering the headlines filed on 25 November 2026,
+composed pixel by pixel with Pillow only. Nothing is fetched from the network,
+nothing is seeded or read from the clock, so repeated runs match byte for byte.
 """
 
 W, H = 1024, 1024
@@ -236,7 +236,7 @@ def draw_card(draw, x, y, w, h, emoji, title, source, emoji_font, title_font, so
     draw.text((x + 16, y + h - 32), source, font=source_font, fill=SOURCE_COLOR)
 
 
-# Assemble the full poster: header, globe, six story cards, then the ticker.
+# Walks build() through the layout order: masthead first, then the globe, the story grid, and finally the ticker strip.
 def build():
     img = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)

@@ -2,11 +2,17 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 
 
-"""Generates the entry for the make.fun news-image contest.
+"""Builds the poster submitted for the make.fun news-image contest.
 
-A single 1024x1024 square covering the headlines filed on 25 November 2026,
-composed pixel by pixel with Pillow only. Nothing is fetched from the network,
-nothing is seeded or read from the clock, so repeated runs match byte for byte.
+A lone 1024x1024 canvas that captures the headlines recorded on 25 November
+2026, drawn entirely with Pillow and nothing else. No network calls, no random
+seed, and no reliance on the current time, so successive runs stay byte-for-byte
+identical.
+
+The six items are arranged as three AABBCC couplets, one verse per card, and
+each poster row holds a single couplet: the card on the left rhymes with its
+neighbour on the right. The underlying facts remain untouched; only the wording
+is made to rhyme.
 """
 
 W, H = 1024, 1024
@@ -18,6 +24,11 @@ TITLE_COLOR = (15, 23, 42)
 SOURCE_COLOR = (122, 132, 150)
 TICKER_BG = (14, 20, 38)
 
+# a distinct accent per couplet keeps the AABBCC grouping easy to spot
+PAIR_A = (214, 158, 46)    # golden amber
+PAIR_B = (46, 158, 112)    # fresh green
+PAIR_C = (54, 118, 198)    # cool blue
+
 FONT_DIR = r"C:\Windows\Fonts"
 ENGLISH_PATHS = [
     os.path.join(FONT_DIR, "segoeuib.ttf"),
@@ -27,13 +38,21 @@ ENGLISH_PATHS = [
 ]
 EMOJI_PATH = os.path.join(FONT_DIR, "seguiemj.ttf")
 
+# (icon, verse text, outlet, pair label, accent colour)
+# A: space rhymes with pace; B: day rhymes with play; C: claimed rhymes with named
 NEWS = [
-    ("\U0001f680", "Shenzhou-24 launches with Pakistan's first astronaut", "BBC"),
-    ("\U0001f4c8", "Dow closes above 50,000 for the first time", "MarketWatch"),
-    ("\U0001f7e2", "Nvidia surges 31% in a single day", "MarketWatch"),
-    ("\U0001f3ae", "GTA VI launch sets sales records", "The Guardian"),
-    ("\U0001f6f0\ufe0f", "Spacecraft reaches Mercury orbit after 8-year journey", "CBS News"),
-    ("\U0001f3c6", "Dancing With the Stars Season 35 winner crowned", "Hollywood Reporter"),
+    ("\U0001f680", "Shenzhou-24 flies Pakistan's first astronaut to space,",
+     "BBC", "A", PAIR_A),
+    ("\U0001f4c8", "Dow tops fifty thousand as bulls set the pace.",
+     "MarketWatch", "A", PAIR_A),
+    ("\U0001f7e2", "Nvidia climbs thirty-one percent in a day,",
+     "MarketWatch", "B", PAIR_B),
+    ("\U0001f3ae", "GTA VI launches and rewrites the play.",
+     "The Guardian", "B", PAIR_B),
+    ("\U0001f6f0\ufe0f", "Eight years to Mercury \u2014 its orbit is claimed,",
+     "CBS News", "C", PAIR_C),
+    ("\U0001f3c6", "Dancing With the Stars: a champion is named.",
+     "Hollywood Reporter", "C", PAIR_C),
 ]
 
 
@@ -114,23 +133,8 @@ def draw_emoji_fallback(draw, x, y, s, char):
         )
         draw.line([x + 0.3 * s, y + 0.15 * s, x + 0.3 * s, y + 0.5 * s], fill=(230, 230, 230), width=3)
         draw.line([x + 0.6 * s, y + 0.15 * s, x + 0.6 * s, y + 0.5 * s], fill=(230, 230, 230), width=3)
-    elif base == "\U0001f4a5":
-        for i, (dx, dy) in enumerate([(0.5, 0.02), (0.82, 0.25), (0.9, 0.55), (0.7, 0.8),
-                                      (0.4, 0.85), (0.2, 0.62), (0.14, 0.3), (0.3, 0.1)]):
-            draw.line([x + 0.5 * s, y + 0.5 * s, x + dx * s, y + dy * s],
-                      fill=[(240, 160, 60), (250, 210, 90)][i % 2], width=3)
-    elif base == "\u26a0\ufe0f":
-        draw.polygon(
-            [(x + 0.5 * s, y), (x + s, y + 0.9 * s), (x, y + 0.9 * s)],
-            fill=(240, 180, 60),
-        )
-        draw.rectangle(
-            [x + 0.44 * s, y + 0.36 * s, x + 0.56 * s, y + 0.62 * s],
-            fill=(30, 30, 30),
-        )
-        draw.ellipse([x + 0.44 * s, y + 0.7 * s, x + 0.56 * s, y + 0.82 * s], fill=(30, 30, 30))
     elif base == "\U0001f6f0":
-        # planet with an orbiting probe
+        # planet circled by a small probe
         cx, cy = x + 0.5 * s, y + 0.54 * s
         draw.ellipse([cx - 0.27 * s, cy - 0.27 * s, cx + 0.27 * s, cy + 0.27 * s],
                      fill=(86, 140, 210))
@@ -141,7 +145,7 @@ def draw_emoji_fallback(draw, x, y, s, char):
         draw.ellipse([cx + 0.28 * s, cy - 0.31 * s, cx + 0.42 * s, cy - 0.17 * s],
                      fill=(240, 192, 96))
     elif base == "\U0001f3c6":
-        # trophy
+        # championship cup
         draw.polygon(
             [(x + 0.22 * s, y + 0.16 * s), (x + 0.78 * s, y + 0.16 * s),
              (x + 0.68 * s, y + 0.56 * s), (x + 0.32 * s, y + 0.56 * s)],
@@ -219,47 +223,70 @@ def draw_globe(base, cx, cy, r):
     base.paste(globe, (0, 0), mask)
 
 
-def draw_card(draw, x, y, w, h, emoji, title, source, emoji_font, title_font, source_font):
+def draw_verse_card(draw, x, y, w, h, emoji, verse, source, pair_id, pair_color,
+                    verse_font, source_font, badge_font, bar_on_right):
+    """A single verse per card; the pair label sits in the corner so the two
+    rhyming cards are instantly recognisable."""
     draw.rounded_rectangle(
         [x, y, x + w, y + h], radius=18, fill=CARD_BG, outline=CARD_BORDER, width=2
     )
+    # coloured edge strip on the outside, matched per couplet so the halves echo
+    if bar_on_right:
+        bar = [x + w - 20, y + 14, x + w - 12, y + h - 14]
+    else:
+        bar = [x + 12, y + 14, x + 20, y + h - 14]
+    draw.rounded_rectangle(bar, radius=4, fill=pair_color)
 
-    emoji_size = 40
-    draw_emoji(draw, (x + 16, y + 12), emoji_size, emoji)
+    draw_emoji(draw, (x + 28, y + 16), 40, emoji)
 
-    lines = wrap_text(draw, title, title_font, w - 32)
-    ty = y + 66
+    # couplet badge
+    bx, by, br = x + w - 34, y + 38, 17
+    if bar_on_right:
+        bx = x + w - 48
+    draw.ellipse([bx - br, by - br, bx + br, by + br], outline=pair_color, width=2)
+    draw.text((bx, by), pair_id, font=badge_font, fill=pair_color, anchor="mm")
+
+    lines = wrap_text(draw, verse, verse_font, w - 56)
+    ty = y + 68
     for line in lines[:3]:
-        draw.text((x + 16, ty), line, font=title_font, fill=TITLE_COLOR)
-        ty += 27
+        draw.text((x + 28, ty), line, font=verse_font, fill=TITLE_COLOR)
+        ty += 29
 
-    draw.text((x + 16, y + h - 32), source, font=source_font, fill=SOURCE_COLOR)
+    draw.text((x + 28, y + h - 30), source, font=source_font, fill=SOURCE_COLOR)
 
 
-# Walks build() through the layout order: masthead first, then the globe, the story grid, and finally the ticker strip.
+# Assembles the poster from top to bottom: header first, then the globe,
+# then the three couplet rows, and finally the ticker band.
 def build():
     img = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)
 
     title_font = load_font(ENGLISH_PATHS, 54)
-    draw.text((W / 2, 60), "NOVEMBER 25, 2026", font=title_font, fill=GOLD, anchor="mm")
-    draw.text((W / 2, 132), "\u00b7 THE DAY IN ONE IMAGE", font=title_font, fill=GOLD, anchor="mm")
+    draw.text((W / 2, 54), "NOVEMBER 25, 2026", font=title_font, fill=GOLD, anchor="mm")
+    sub_font = load_font(ENGLISH_PATHS, 40)
+    draw.text((W / 2, 112), "\u00b7 THE DAY IN RHYME", font=sub_font, fill=GOLD, anchor="mm")
+    # labels the pattern so the A/A, B/B, C/C tags read as rhyming pairs
+    hint_font = load_font(ENGLISH_PATHS, 17)
+    draw.text((W / 2, 148), "SIX STORIES \u00b7 THREE COUPLETS \u00b7 AABBCC",
+              font=hint_font, fill=(168, 150, 110), anchor="mm")
 
-    draw_globe(img, 512, 600, 170)
+    draw_globe(img, 512, 524, 145)
 
-    card_w, card_h = 272, 184
-    left_x, right_x = 18, W - 18 - card_w
-    ys = [176, 384, 592]
+    card_w, card_h = 340, 184
+    left_x, right_x = 16, W - 16 - card_w
+    ys = [168, 442, 716]
 
-    emoji_font = load_emoji_font(40)
-    title_font = load_font(ENGLISH_PATHS, 22)
+    verse_font = load_font(ENGLISH_PATHS, 21)
     source_font = load_font(ENGLISH_PATHS, 16)
+    badge_font = load_font(ENGLISH_PATHS, 20)
 
-    for i, (emoji, title, source) in enumerate(NEWS):
-        col = i // 3
-        x = left_x if col == 0 else right_x
-        y = ys[i % 3]
-        draw_card(draw, x, y, card_w, card_h, emoji, title, source, emoji_font, title_font, source_font)
+    for i, (emoji, verse, source, pair_id, pair_color) in enumerate(NEWS):
+        row = i // 2                      # each row holds one couplet
+        on_right = i % 2 == 1
+        x = right_x if on_right else left_x
+        draw_verse_card(draw, x, ys[row], card_w, card_h, emoji, verse, source,
+                        pair_id, pair_color, verse_font, source_font, badge_font,
+                        on_right)
 
     ticker_y0, ticker_y1 = 936, 992
     draw.rectangle([0, ticker_y0, W, ticker_y1], fill=TICKER_BG)
@@ -284,7 +311,8 @@ def build():
 
 def main():
     out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR") or (
-        "/output" if os.path.isdir("/output") else os.path.dirname(os.path.abspath(__file__))
+        "/output" if os.path.isdir("/output")
+        else os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
     )
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "entry.png")

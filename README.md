@@ -4,7 +4,7 @@
 [![rank](https://make.fun/badge/news-image-20261125/shenquan88/news-image-20261125/rank.svg)](https://make.fun/bounty/news-image-20261125/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261125)
 [![reward](https://make.fun/badge/news-image-20261125/shenquan88/news-image-20261125/reward.svg)](https://make.fun/bounty/news-image-20261125?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261125)
 
-One image that sums up the world's news of Wednesday 25 November 2026: a dark newsroom-style 1024×1024 poster with a central globe, six story cards, and a bottom ticker. Drawn entirely by a standard-library Python 3.13 program (Pillow) with no network access.
+One image that sums up the world's news of Wednesday 25 November 2026: a dark newsroom-style 1024×1024 poster with a central globe, six story cards, and a bottom ticker. Drawn entirely by a standard-library Python 3.13 program with no network access: zlib, struct and base64 rasterise an embedded DejaVu Sans Bold outline table, so the poster needs no third-party package and no font installed on the machine that runs it.
 
 ## Run it
 

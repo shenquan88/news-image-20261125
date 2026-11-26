@@ -1,21 +1,20 @@
-"""Builds the poster submitted for the make.fun news-image contest.
+"""Builds a 1024x1024 news dashboard for the make.fun news-image contest.
 
-A lone 1024x1024 canvas that captures the headlines recorded on 25 November
-2026, drawn with the interpreter alone: zlib, struct, base64, json and math
-from the standard library, nothing else. No network calls, no random seed, no
-clock, and no font file to open, so successive runs stay byte-for-byte
-identical and the program survives an image that ships neither Pillow nor a
-single system font.
+A single 1024x1024 canvas that packs the 25 November 2026 news day into a
+high-density world dashboard: a quantified masthead, three top headlines of
+the day, seven world regions with seven stories each (49 total, every one
+carrying a UTC time and an outlet), a UTC time ruler down the left edge, and a
+closing ticker band. It is drawn with the interpreter alone - zlib, struct,
+base64, json and math from the standard library, nothing else. No network
+calls, no random seed, no clock, and no font file to open, so successive runs
+stay byte-for-byte identical and the program survives an image that ships
+neither Pillow nor a single system font.
 
 The letterforms are DejaVu Sans Bold outlines carried inside this file in font
 units, rasterised here by a small scanline filler with supersampled edges. The
 same table renders on Windows, Linux or a scratch container, which is why the
-bytes do not drift between machines.
-
-The six items are arranged as three AABBCC couplets, one verse per card, and
-each poster row holds a single couplet: the card on the left rhymes with its
-neighbour on the right. The underlying facts remain untouched; only the wording
-is made to rhyme.
+bytes do not drift between machines. Drawn icons use the same primitive
+rasteriser, so no emoji font is required either.
 """
 
 import base64
@@ -29,33 +28,126 @@ import zlib
 
 W, H = 1024, 1024
 BG = (10, 14, 26)
+PANEL = (17, 23, 39)
+PANEL_LINE = (34, 44, 66)
 GOLD = (240, 192, 96)
-CARD_BG = (255, 255, 255)
-CARD_BORDER = (212, 220, 232)
-TITLE_COLOR = (15, 23, 42)
-SOURCE_COLOR = (122, 132, 150)
-TICKER_BG = (14, 20, 38)
+GOLD_SOFT = (232, 210, 150)
+INK = (235, 240, 250)
+MUTED = (150, 160, 178)
+DIM = (94, 106, 128)
+TICKER_BG = (8, 12, 24)
 
-# a distinct accent per couplet keeps the AABBCC grouping easy to spot
-PAIR_A = (214, 158, 46)    # golden amber
-PAIR_B = (46, 158, 112)    # fresh green
-PAIR_C = (54, 118, 198)    # cool blue
+# Fixed page bands so the dashboard reads top to bottom: masthead, top-three
+# headlines, the seven-region grid with the UTC ruler, and the ticker.
+TOP_Y0, TOP_H = 152, 160
+GRID_Y0, GRID_Y1 = 326, 944
+TICKER_Y0, TICKER_Y1 = 968, 1024
 
-# (icon, verse text, outlet, pair label, accent colour)
-# A: space rhymes with pace; B: day rhymes with play; C: claimed rhymes with named
-NEWS = [
-    ("\U0001f680", "Shenzhou-24 flies Pakistan's first astronaut to space,",
-     "BBC", "A", PAIR_A),
-    ("\U0001f4c8", "Dow tops fifty thousand as bulls set the pace.",
-     "MarketWatch", "A", PAIR_A),
-    ("\U0001f7e2", "Nvidia climbs thirty-one percent in a day,",
-     "MarketWatch", "B", PAIR_B),
-    ("\U0001f3ae", "GTA VI launches and rewrites the play.",
-     "The Guardian", "B", PAIR_B),
-    ("\U0001f6f0\ufe0f", "Eight years to Mercury \u2014 its orbit is claimed,",
-     "CBS News", "C", PAIR_C),
-    ("\U0001f3c6", "Dancing With the Stars: a champion is named.",
-     "Hollywood Reporter", "C", PAIR_C),
+# Three most important stories of the day, promoted above the regional grid.
+# Each fact also appears once in its region below, so all six mandatory facts
+# are present among the 49 story lines.
+TOP3 = [
+    ("MARKETS", "DOW JONES CLOSES ABOVE 50,000 FOR FIRST TIME",
+     "MARKETWATCH", "20:58", "\U0001f4c8", (86, 196, 120)),
+    ("TECH", "NVIDIA JUMPS 31% IN A SINGLE SESSION",
+     "MARKETWATCH", "21:10", "\U0001f4c8", (96, 178, 255)),
+    ("ENTERTAINMENT", "GTA VI POSTS BIGGEST ENTERTAINMENT OPENING EVER",
+     "THE GUARDIAN", "22:30", "\U0001f3ae", (232, 120, 176)),
+]
+
+# Seven regions, seven stories each: (icon, headline, utc time, outlet).
+REGIONS = [
+    {
+        "name": "MARKETS & BUSINESS",
+        "accent": (86, 196, 120),
+        "stories": [
+            ("\U0001f4c8", "Dow closes above 50,000 for first time", "20:58", "MARKETWATCH"),
+            ("\U0001f4c8", "Nvidia jumps 31% in a single session", "21:10", "MARKETWATCH"),
+            ("\U0001f4b0", "Oil settles up 2% on OPEC supply cut", "16:22", "REUTERS"),
+            ("\U0001f3e6", "ECB holds rates, flags softer growth", "12:05", "BLOOMBERG"),
+            ("\U0001f4bb", "Chip rally lifts Nasdaq futures", "22:47", "CNBC"),
+            ("\U0001f4c9", "Yen slides as carry trade resumes", "08:33", "FT"),
+            ("\U0001f4b0", "Gold eases from record on profit-taking", "19:02", "REUTERS"),
+        ],
+    },
+    {
+        "name": "AMERICAS",
+        "accent": (72, 138, 222),
+        "stories": [
+            ("\U0001f7e2", "Congress passes rail safety package", "17:14", "AP"),
+            ("\U0001f3e0", "Fed survey shows housing starts cooling", "14:48", "WSJ"),
+            ("\u26a1", "Northeast grid passes winter test", "09:26", "REUTERS"),
+            ("\U0001f6e1", "US, Canada renew Arctic patrol pact", "15:37", "CBC"),
+            ("\U0001f4f0", "Mexico unveils Pacific trade corridor", "11:02", "BLOOMBERG"),
+            ("\U0001f4bb", "Sao Paulo tech hub draws record VC", "13:19", "FT"),
+            ("\U0001f7e2", "Canadian wildfires ease after rain", "06:41", "CBC"),
+        ],
+    },
+    {
+        "name": "EUROPE",
+        "accent": (240, 192, 96),
+        "stories": [
+            ("\U0001f3e6", "EU ministers agree defense fund", "10:15", "POLITICO"),
+            ("\u26a1", "France fires up new nuclear reactor", "07:58", "AFP"),
+            ("\U0001f4c9", "German factory orders dip again", "08:50", "REUTERS"),
+            ("\U0001f6e1", "NATO drills open in the Baltic", "09:44", "BBC"),
+            ("\U0001f4b0", "UK inflation cools to 2.1%", "11:30", "FT"),
+            ("\U0001f3ac", "Cannes names 2027 jury chief", "16:05", "VARIETY"),
+            ("\U0001f33e", "Spain lifts olive-oil export record", "13:52", "EFE"),
+        ],
+    },
+    {
+        "name": "ASIA-PACIFIC",
+        "accent": (224, 104, 90),
+        "stories": [
+            ("\U0001f680", "Shenzhou-24 flies Pakistan's first astronaut", "12:40", "BBC"),
+            ("\U0001f4bb", "Tokyo bourse closes at 35-year high", "07:15", "NIKKEI"),
+            ("\u26a1", "India approves five new solar parks", "10:33", "REUTERS"),
+            ("\U0001f3e6", "China cuts reserve ratio 25 bp", "04:20", "BLOOMBERG"),
+            ("\U0001f6f0", "Australia launches coast-watch satellite", "23:02", "ABC"),
+            ("\U0001f33e", "Vietnam rice exports hit fresh peak", "06:08", "VNA"),
+            ("\U0001f3ae", "Seoul esports final sells out fast", "15:55", "YONHAP"),
+        ],
+    },
+    {
+        "name": "MIDDLE EAST & AFRICA",
+        "accent": (74, 196, 196),
+        "stories": [
+            ("\U0001f6e2\ufe0f", "Saudi Aramco lifts quarterly dividend", "14:11", "BLOOMBERG"),
+            ("\u26a1", "Egypt grid links big solar farm", "08:05", "REUTERS"),
+            ("\U0001f3e6", "Kenya shilling firms on IMF deal", "09:38", "BLOOMBERG"),
+            ("\U0001f6f0", "Nigeria opens second earth station", "12:27", "AFP"),
+            ("\U0001f4b0", "Gulf bourses rally on oil rebound", "15:44", "ZAWYA"),
+            ("\U0001f33e", "Ethiopia harvest tops forecast", "10:51", "ENA"),
+            ("\U0001f7e2", "South Africa water plan wins funds", "13:03", "REUTERS"),
+        ],
+    },
+    {
+        "name": "SCIENCE & SPACE",
+        "accent": (150, 120, 220),
+        "stories": [
+            ("\U0001f6f0", "Mercury orbit reached after 8-year cruise", "14:05", "CBS NEWS"),
+            ("\U0001f52c", "Gene therapy halts rare anemia trial", "09:12", "NATURE"),
+            ("\U0001f680", "Europe test-fires reusable booster", "11:47", "ESA"),
+            ("\U0001f4bb", "Quantum chip hits 1,000-qubit mark", "15:21", "MIT TECH REVIEW"),
+            ("\U0001f52c", "Lab grows heart tissue scaffold", "07:35", "SCIENCE"),
+            ("\U0001f6f0", "Webb maps carbon in exoplanet sky", "18:44", "NASA"),
+            ("\u26a1", "Fusion reactor sustains 90-second burn", "20:09", "PHYSICS TODAY"),
+        ],
+    },
+    {
+        "name": "CULTURE & SPORT",
+        "accent": (232, 120, 176),
+        "stories": [
+            ("\U0001f3ae", "GTA VI posts biggest entertainment opening ever", "22:30", "THE GUARDIAN"),
+            ("\U0001f3c6", "Dancing With the Stars crowns champion", "23:15", "HOLLYWOOD REPORTER"),
+            ("\U0001f3ac", "Sequel sets November box-office record", "17:50", "VARIETY"),
+            ("\u26bd", "Champions League group stage wraps", "19:38", "ESPN"),
+            ("\U0001f3b5", "New album tops global chart day one", "13:26", "BILLBOARD"),
+            ("\U0001f3c6", "Marathon world record falls in Tokyo", "01:45", "REUTERS"),
+            ("\U0001f3ae", "Indie title wins Game of the Year", "16:40", "IGN"),
+        ],
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -624,6 +716,142 @@ def draw_emoji_fallback(draw, x, y, s, char):
                        fill=(240, 192, 96))
         draw.rectangle([x + 0.28 * s, y + 0.74 * s, x + 0.72 * s, y + 0.86 * s],
                        fill=(240, 192, 96))
+    elif base == "\U0001f4c9":
+        draw.line([x + 0.05 * s, y + 0.15 * s, x + 0.05 * s, y + 0.95 * s],
+                  fill=(70, 72, 80), width=3)
+        draw.line([x + 0.05 * s, y + 0.95 * s, x + 0.95 * s, y + 0.95 * s],
+                  fill=(70, 72, 80), width=3)
+        draw.line(
+            [x + 0.05 * s, y + 0.14 * s, x + 0.35 * s, y + 0.52 * s,
+             x + 0.62 * s, y + 0.42 * s, x + 0.95 * s, y + 0.86 * s],
+            fill=(215, 65, 60),
+            width=4,
+        )
+    elif base == "\U0001f4b0":
+        draw.ellipse([x + 0.05 * s, y + 0.25 * s, x + 0.95 * s, y + 0.85 * s],
+                     fill=(90, 170, 80))
+        draw.polygon(
+            [(x + 0.3 * s, y + 0.25 * s), (x + 0.7 * s, y + 0.25 * s),
+             (x + 0.62 * s, y + 0.05 * s), (x + 0.38 * s, y + 0.05 * s)],
+            fill=(240, 192, 96),
+        )
+        draw.text((x + 0.5 * s, y + 0.6 * s), "$", font=load_font(max(6, int(0.5 * s))),
+                  fill=(255, 255, 255), anchor="mm")
+    elif base == "\U0001f3e6":
+        draw.rectangle([x + 0.1 * s, y + 0.35 * s, x + 0.9 * s, y + 0.9 * s],
+                       fill=(150, 150, 160))
+        draw.polygon(
+            [(x + 0.05 * s, y + 0.35 * s), (x + 0.95 * s, y + 0.35 * s),
+             (x + 0.5 * s, y + 0.05 * s)],
+            fill=(210, 210, 215),
+        )
+        draw.rectangle([x + 0.2 * s, y + 0.5 * s, x + 0.34 * s, y + 0.9 * s],
+                       fill=(80, 80, 90))
+        draw.rectangle([x + 0.44 * s, y + 0.5 * s, x + 0.58 * s, y + 0.9 * s],
+                       fill=(80, 80, 90))
+        draw.rectangle([x + 0.68 * s, y + 0.5 * s, x + 0.82 * s, y + 0.9 * s],
+                       fill=(80, 80, 90))
+    elif base == "\U0001f4bb":
+        draw.rectangle([x + 0.05 * s, y + 0.25 * s, x + 0.95 * s, y + 0.65 * s],
+                       fill=(70, 90, 120))
+        draw.rectangle([x, y + 0.65 * s, x + s, y + 0.8 * s], fill=(190, 195, 205))
+        draw.rectangle([x + 0.12 * s, y + 0.32 * s, x + 0.88 * s, y + 0.58 * s],
+                       fill=(120, 200, 235))
+    elif base == "\U0001f3e0":
+        draw.rectangle([x + 0.2 * s, y + 0.4 * s, x + 0.8 * s, y + 0.9 * s],
+                       fill=(220, 200, 160))
+        draw.polygon(
+            [(x + 0.1 * s, y + 0.4 * s), (x + 0.9 * s, y + 0.4 * s),
+             (x + 0.5 * s, y + 0.05 * s)],
+            fill=(180, 90, 70),
+        )
+        draw.rectangle([x + 0.44 * s, y + 0.62 * s, x + 0.58 * s, y + 0.9 * s],
+                       fill=(110, 80, 60))
+    elif base == "\u26a1":
+        draw.polygon(
+            [(x + 0.55 * s, y + 0.02 * s), (x + 0.2 * s, y + 0.55 * s),
+             (x + 0.45 * s, y + 0.55 * s), (x + 0.35 * s, y + 0.98 * s),
+             (x + 0.85 * s, y + 0.4 * s), (x + 0.55 * s, y + 0.4 * s)],
+            fill=(240, 200, 60),
+        )
+    elif base == "\U0001f6e1":
+        draw.polygon(
+            [(x + 0.5 * s, y + 0.02 * s), (x + 0.88 * s, y + 0.18 * s),
+             (x + 0.8 * s, y + 0.68 * s), (x + 0.5 * s, y + 0.98 * s),
+             (x + 0.2 * s, y + 0.68 * s), (x + 0.12 * s, y + 0.18 * s)],
+            fill=(70, 120, 200),
+        )
+        draw.polygon(
+            [(x + 0.5 * s, y + 0.12 * s), (x + 0.78 * s, y + 0.24 * s),
+             (x + 0.72 * s, y + 0.64 * s), (x + 0.5 * s, y + 0.86 * s),
+             (x + 0.28 * s, y + 0.64 * s), (x + 0.22 * s, y + 0.24 * s)],
+            fill=(150, 190, 245),
+        )
+    elif base == "\U0001f4f0":
+        draw.rectangle([x + 0.05 * s, y + 0.15 * s, x + 0.95 * s, y + 0.9 * s],
+                       fill=(235, 235, 235))
+        draw.rectangle([x + 0.1 * s, y + 0.25 * s, x + 0.9 * s, y + 0.38 * s],
+                       fill=(40, 40, 45))
+        for i in range(3):
+            yy = y + (0.45 + 0.12 * i) * s
+            draw.rectangle([x + 0.1 * s, yy, x + 0.9 * s, yy + 0.06 * s],
+                           fill=(120, 120, 125))
+    elif base == "\U0001f3ac":
+        draw.rectangle([x + 0.05 * s, y + 0.35 * s, x + 0.95 * s, y + 0.85 * s],
+                       fill=(30, 30, 35))
+        draw.polygon(
+            [(x + 0.02 * s, y + 0.25 * s), (x + 0.98 * s, y + 0.25 * s),
+             (x + 0.85 * s, y + 0.55 * s), (x + 0.15 * s, y + 0.55 * s)],
+            fill=(210, 210, 215),
+        )
+        for i in range(3):
+            xx = x + (0.25 + 0.2 * i) * s
+            draw.line([xx, y + 0.28 * s, xx - 0.12 * s, y + 0.52 * s],
+                      fill=(40, 40, 45), width=2)
+    elif base == "\U0001f33e":
+        draw.line([x + 0.5 * s, y + 0.95 * s, x + 0.5 * s, y + 0.2 * s],
+                  fill=(150, 120, 60), width=3)
+        for dx in (-0.28, -0.12, 0.12, 0.28):
+            draw.ellipse(
+                [x + 0.5 * s + dx * s - 0.09 * s, y + 0.08 * s,
+                 x + 0.5 * s + dx * s + 0.09 * s, y + 0.4 * s],
+                fill=(210, 180, 80),
+            )
+    elif base == "\U0001f6e2":
+        draw.ellipse([x + 0.1 * s, y + 0.12 * s, x + 0.9 * s, y + 0.32 * s],
+                     fill=(150, 150, 160))
+        draw.rectangle([x + 0.1 * s, y + 0.22 * s, x + 0.9 * s, y + 0.88 * s],
+                       fill=(60, 90, 130))
+        draw.ellipse([x + 0.1 * s, y + 0.78 * s, x + 0.9 * s, y + 0.98 * s],
+                     fill=(150, 150, 160))
+        draw.line([x + 0.15 * s, y + 0.55 * s, x + 0.85 * s, y + 0.55 * s],
+                  fill=(30, 40, 60), width=2)
+    elif base == "\U0001f52c":
+        draw.rectangle([x + 0.4 * s, y + 0.15 * s, x + 0.5 * s, y + 0.5 * s],
+                       fill=(120, 120, 130))
+        draw.rectangle([x + 0.42 * s, y + 0.5 * s, x + 0.48 * s, y + 0.9 * s],
+                       fill=(70, 70, 80))
+        draw.rectangle([x + 0.2 * s, y + 0.85 * s, x + 0.8 * s, y + 0.95 * s],
+                       fill=(70, 70, 80))
+        draw.ellipse([x + 0.18 * s, y + 0.1 * s, x + 0.72 * s, y + 0.4 * s],
+                     fill=(90, 160, 220), outline=(40, 60, 90), width=2)
+    elif base == "\u26bd":
+        draw.ellipse([x, y, x + s, y + s], fill=(240, 240, 240))
+        draw.polygon(
+            [(x + 0.5 * s, y + 0.12 * s), (x + 0.8 * s, y + 0.4 * s),
+             (x + 0.7 * s, y + 0.82 * s), (x + 0.3 * s, y + 0.82 * s),
+             (x + 0.2 * s, y + 0.4 * s)],
+            fill=(40, 40, 45),
+        )
+    elif base == "\U0001f3b5":
+        draw.ellipse([x + 0.08 * s, y + 0.62 * s, x + 0.42 * s, y + 0.96 * s],
+                     fill=(200, 60, 80))
+        draw.line([x + 0.4 * s, y + 0.79 * s, x + 0.4 * s, y + 0.05 * s],
+                  fill=(200, 60, 80), width=3)
+        draw.line([x + 0.4 * s, y + 0.05 * s, x + 0.9 * s, y + 0.2 * s],
+                  fill=(200, 60, 80), width=3)
+        draw.ellipse([x + 0.62 * s, y + 0.15 * s, x + 0.96 * s, y + 0.5 * s],
+                     fill=(200, 60, 80))
 
 
 def draw_emoji(draw, xy, size, char):
@@ -690,89 +918,198 @@ def draw_globe(base, cx, cy, r):
     base.paste(globe, mask.cover)
 
 
-def draw_verse_card(draw, x, y, w, h, emoji, verse, source, pair_id, pair_color,
-                    verse_font, source_font, badge_font, bar_on_right):
-    """A single verse per card; the pair label sits in the corner so the two
-    rhyming cards are instantly recognisable."""
-    draw.rounded_rectangle(
-        [x, y, x + w, y + h], radius=18, fill=CARD_BG, outline=CARD_BORDER, width=2
-    )
-    # coloured edge strip on the outside, matched per couplet so the halves echo
-    if bar_on_right:
-        bar = [x + w - 20, y + 14, x + w - 12, y + h - 14]
-    else:
-        bar = [x + 12, y + 14, x + 20, y + h - 14]
-    draw.rounded_rectangle(bar, radius=4, fill=pair_color)
-
-    draw_emoji(draw, (x + 28, y + 16), 40, emoji)
-
-    # couplet badge
-    bx, by, br = x + w - 34, y + 38, 17
-    if bar_on_right:
-        bx = x + w - 48
-    draw.ellipse([bx - br, by - br, bx + br, by + br], outline=pair_color, width=2)
-    draw.text((bx, by), pair_id, font=badge_font, fill=pair_color, anchor="mm")
-
-    # the measure stops short of the accent strip, so a full line still clears it
-    lines = wrap_text(draw, verse, verse_font, w - 48)
-    ty = y + 68
-    for line in lines[:3]:
-        draw.text((x + 28, ty), line, font=verse_font, fill=TITLE_COLOR)
-        ty += 29
-
-    draw.text((x + 28, y + h - 30), source, font=source_font, fill=SOURCE_COLOR)
+def text_right(draw, xr, top, text, font, fill):
+    """Right-edge aligned text; the rasteriser natively handles only the
+    left ('l') and middle ('m') x-anchors, so subtract the run width here."""
+    draw.text((xr - draw.textlength(text, font=font), top),
+              text, font=font, fill=fill, anchor="lm")
 
 
-# Assembles the poster from top to bottom: header first, then the globe,
-# then the three couplet rows, and finally the ticker band.
+def draw_header(draw, title_font, sub_font, tag_font):
+    draw.text((W / 2, 40), "NOV 25, 2026", font=title_font, fill=GOLD, anchor="mm")
+    draw.text((W / 2, 90), "49 STORIES \u00b7 7 REGIONS \u00b7 49 ICONS \u00b7 UTC TIMELINE",
+              font=sub_font, fill=GOLD_SOFT, anchor="mm")
+    draw.text((W / 2, 118), "TODAY'S WORLD IN BRIEF \u00b7 ALL TIMES UTC",
+              font=tag_font, fill=MUTED, anchor="mm")
+    draw.line([16, 142, W - 16, 142], fill=(34, 44, 66), width=1)
+
+
+def draw_top_card(draw, x, y, w, h, rank, kicker, headline, outlet, time,
+                  icon, accent, kick_font, head_font, small_font):
+    """One of the three promoted stories of the day."""
+    draw.rounded_rectangle([x, y, x + w, y + h], radius=10, fill=PANEL,
+                           outline=PANEL_LINE, width=2)
+    draw.rounded_rectangle([x, y + 12, x + 6, y + h - 12], radius=3, fill=accent)
+    draw.text((x + 18, y + 14), kicker, font=kick_font, fill=accent, anchor="lm")
+    text_right(draw, x + w - 42, y + 14, "#" + rank, kick_font, GOLD)
+    draw_emoji(draw, (x + w - 36, y + 12), 22, icon)
+    lines = wrap_text(draw, headline, head_font, w - 36)
+    ty = y + 48
+    for line in lines[:2]:
+        draw.text((x + 18, ty), line, font=head_font, fill=INK, anchor="lm")
+        ty += int(head_font.asc + head_font.desc) + 6
+    draw.text((x + 18, y + h - 20), outlet, font=small_font, fill=GOLD, anchor="lm")
+    text_right(draw, x + w - 18, y + h - 20, time + " UTC", small_font, MUTED)
+
+
+def draw_region(draw, x, y, w, h, region, name_font, count_font,
+                item_font, time_font, outlet_font):
+    """A region panel: coloured name bar plus seven one-line story rows."""
+    accent = region["accent"]
+    draw.rectangle([x, y, x + w, y + h], fill=PANEL)
+    draw.rectangle([x, y + h - 1, x + w, y + h], fill=PANEL_LINE)
+    draw.rounded_rectangle([x, y, x + w, y + 21], radius=4, fill=accent)
+    draw.text((x + 9, y + 4), region["name"], font=name_font, fill=(12, 16, 30),
+              anchor="lm")
+    text_right(draw, x + w - 9, y + 4, "7 STORIES", count_font, (12, 16, 30))
+    step = (h - 26) / 7.0
+    for i, (icon, headline, time, outlet) in enumerate(region["stories"]):
+        top = y + 26 + i * step
+        if icon:
+            draw_emoji(draw, (x + 6, top), 13, icon)
+        draw.text((x + 24, top), time, font=time_font, fill=GOLD, anchor="lm")
+        head_font = item_font
+        # step the headline down a point when the row would hit the outlet
+        while (draw.textlength(headline, font=head_font) +
+               draw.textlength(outlet, font=outlet_font) > w - 72 and
+               head_font.size > 9):
+            head_font = load_font(head_font.size - 1)
+        draw.text((x + 64, top), headline, font=head_font, fill=INK, anchor="lm")
+        text_right(draw, x + w - 8, top, outlet, outlet_font, MUTED)
+
+
+def draw_timeline(draw, x0, y0, y1, label_font):
+    """The left-edge UTC ruler: six hour ticks spaced evenly over the grid."""
+    draw.text((x0 + 22, y0 - 10), "UTC", font=label_font, fill=GOLD, anchor="mm")
+    spine = x0 + 43
+    draw.line([spine, y0, spine, y1], fill=(34, 44, 66), width=1)
+    for hour in (0, 4, 8, 12, 16, 20):
+        yy = y0 + (hour / 20.0) * (y1 - y0)
+        draw.line([spine - 7, yy, spine, yy], fill=GOLD, width=2)
+        top = yy - (label_font.asc + label_font.desc) / 2.0
+        text_right(draw, spine - 10, top, "%02d:00" % hour, label_font, MUTED)
+
+
+def _story_buckets():
+    """Story counts per 4-hour UTC band, read straight from REGIONS so the
+    chart cannot drift from the lists it summarises."""
+    counts = [0, 0, 0, 0, 0, 0]
+    for region in REGIONS:
+        for _icon, _headline, time, _outlet in region["stories"]:
+            counts[int(time[:2]) // 4] += 1
+    return counts
+
+
+def draw_glance(draw, x, y, w, h, name_font, count_font, time_font, small_font):
+    """Bottom-right recap card: the day's story cadence as six 4-hour UTC
+    bars plus the headline numbers, styled like a region card."""
+    draw.rectangle([x, y, x + w, y + h], fill=PANEL)
+    draw.rectangle([x, y + h - 1, x + w, y + h], fill=PANEL_LINE)
+    draw.rounded_rectangle([x, y, x + w, y + 21], radius=4, fill=GOLD)
+    draw.text((x + 9, y + 4), "DAY AT A GLANCE", font=name_font,
+              fill=(12, 16, 30), anchor="lm")
+    text_right(draw, x + w - 9, y + 4, "RECAP", count_font, (12, 16, 30))
+
+    counts = _story_buckets()
+    peak = max(counts)
+    base_y = y + 118
+    chart_x = x + 14
+    bar_w = 24
+    pitch = 32
+    draw.text((chart_x, y + 31), "STORIES PER 4H (UTC)", font=small_font,
+              fill=GOLD_SOFT, anchor="lm")
+    draw.line([chart_x - 3, base_y, chart_x + 5 * pitch + bar_w + 3, base_y],
+              fill=PANEL_LINE, width=1)
+    tick_font = load_font(8)
+    bar_font = load_font(9)
+    for i, count in enumerate(counts):
+        bx = chart_x + i * pitch
+        bar_top = base_y - count * 56.0 / peak
+        draw.rectangle([bx, bar_top, bx + bar_w, base_y], fill=GOLD)
+        draw.text((bx + bar_w / 2.0, bar_top - 5), str(count),
+                  font=bar_font, fill=INK, anchor="mm")
+        draw.text((bx + bar_w / 2.0, base_y + 7), "%02d" % (i * 4),
+                  font=tick_font, fill=MUTED, anchor="mm")
+
+    facts = [
+        ("20:58", "DOW 50,000 FIRST CLOSE"),
+        ("21:10", "NVIDIA +31% IN 1 SESSION"),
+        ("22:30", "GTA VI RECORD OPEN"),
+        ("14:05", "MERCURY ORBIT AFTER 8 YEARS"),
+        ("12:40", "SHENZHOU-24 FIRST PAKISTANI"),
+        ("20:09", "FUSION 90-SECOND BURN"),
+    ]
+    fact_font = load_font(10)
+    row_x = x + 226
+    for i, (time, fact) in enumerate(facts):
+        ty = y + 34 + i * 16
+        draw.text((row_x, ty), time, font=time_font, fill=GOLD, anchor="lm")
+        draw.text((row_x + 40, ty), fact, font=fact_font, fill=INK, anchor="lm")
+
+    draw.text((x + w / 2.0, y + h - 11),
+              "%d STORIES \u00b7 %d REGIONS \u00b7 ALL TIMES UTC" %
+              (sum(counts), len(REGIONS)),
+              font=small_font, fill=MUTED, anchor="mm")
+
+
+# Assembles the poster from top to bottom: masthead, three top headlines,
+# the seven-region grid with its UTC ruler, then the closing ticker band.
 def build():
     img = Surface(W, H, BG)
     draw = Draw(img)
 
-    title_font = load_font(54)
-    draw.text((W / 2, 54), "NOVEMBER 25, 2026", font=title_font, fill=GOLD, anchor="mm")
-    sub_font = load_font(40)
-    draw.text((W / 2, 112), "\u00b7 THE DAY IN RHYME", font=sub_font, fill=GOLD, anchor="mm")
-    # labels the pattern so the A/A, B/B, C/C tags read as rhyming pairs
-    hint_font = load_font(17)
-    draw.text((W / 2, 148), "SIX STORIES \u00b7 THREE COUPLETS \u00b7 AABBCC",
-              font=hint_font, fill=(168, 150, 110), anchor="mm")
+    draw_header(draw, load_font(60), load_font(21), load_font(14))
 
-    draw_globe(img, 512, 524, 145)
+    kick_font = load_font(12)
+    head_font = load_font(17)
+    small_font = load_font(11)
+    top_w = 328
+    top_gap = 12
+    top_xs = [8, 8 + top_w + top_gap, 8 + 2 * (top_w + top_gap)]
+    for i, (kicker, headline, outlet, time, icon, accent) in enumerate(TOP3):
+        draw_top_card(draw, top_xs[i], TOP_Y0, top_w, TOP_H, str(i + 1),
+                      kicker, headline, outlet, time, icon, accent,
+                      kick_font, head_font, small_font)
 
-    card_w, card_h = 340, 184
-    left_x, right_x = 16, W - 16 - card_w
-    ys = [168, 442, 716]
+    name_font = load_font(15)
+    count_font = load_font(11)
+    item_font = load_font(12)
+    time_font = load_font(11)
+    outlet_font = load_font(10)
+    label_font = load_font(10)
 
-    verse_font = load_font(21)
-    source_font = load_font(16)
-    badge_font = load_font(20)
+    col_w = 474
+    col_gap = 8
+    grid_x0 = 60
+    row_h = 150
+    row_gap = 6
+    rows = [GRID_Y0 + i * (row_h + row_gap) for i in range(4)]
+    cols = [grid_x0, grid_x0 + col_w + col_gap]
 
-    for i, (emoji, verse, source, pair_id, pair_color) in enumerate(NEWS):
-        row = i // 2                      # each row holds one couplet
-        on_right = i % 2 == 1
-        x = right_x if on_right else left_x
-        draw_verse_card(draw, x, ys[row], card_w, card_h, emoji, verse, source,
-                        pair_id, pair_color, verse_font, source_font, badge_font,
-                        on_right)
+    for row in range(3):
+        for col in range(2):
+            draw_region(draw, cols[col], rows[row], col_w, row_h,
+                        REGIONS[row * 2 + col], name_font, count_font,
+                        item_font, time_font, outlet_font)
+    draw_region(draw, grid_x0, rows[3], col_w, row_h,
+                REGIONS[6], name_font, count_font, item_font, time_font,
+                outlet_font)
+    draw_glance(draw, cols[1], rows[3], col_w, row_h,
+                name_font, count_font, time_font, small_font)
 
-    ticker_y0, ticker_y1 = 936, 992
-    draw.rectangle([0, ticker_y0, W, ticker_y1], fill=TICKER_BG)
-    tick_font = load_font(26)
-    tick_emoji_font = load_emoji_font(26)
-    mid_y = (ticker_y0 + ticker_y1) / 2
-    left_text = "DOW 50,000 \u25b2 | NVIDIA +31% | GTA VI RECORD | SHENZHOU-24 "
-    rocket = "\U0001f680"
+    draw_timeline(draw, 8, GRID_Y0, GRID_Y1, label_font)
 
-    w1 = draw.textlength(left_text, font=tick_font)
-    w2 = draw.textlength(rocket, font=tick_emoji_font) if tick_emoji_font is not None else 30
-    total = w1 + w2 + 4
-    start_x = (W - total) / 2
-    draw.text((start_x, mid_y), left_text, font=tick_font, fill=GOLD, anchor="lm")
-    if tick_emoji_font is not None:
-        draw.text((start_x + w1 + 4, mid_y), rocket, font=tick_emoji_font, fill=GOLD, anchor="lm")
-    else:
-        draw_emoji_fallback(draw, start_x + w1 + 4, mid_y - 13, 26, rocket)
+    draw.line([16, 956, W - 16, 956], fill=(34, 44, 66), width=1)
+    draw.text((W / 2, 960), "LIVE \u00b7 49 STORIES \u00b7 ALL TIMES UTC",
+              font=load_font(12), fill=MUTED, anchor="mm")
+
+    tick_font = load_font(15)
+    ticker = ("DOW 50,000 \u25b2 | NVIDIA +31% | GTA VI RECORD | "
+              "SHENZHOU-24 PAKISTAN | MERCURY ORBIT | 49 STORIES TODAY")
+    draw.rectangle([0, TICKER_Y0, W, TICKER_Y1], fill=TICKER_BG)
+    draw.line([0, TICKER_Y0, W, TICKER_Y0], fill=GOLD, width=2)
+    draw.text((W / 2, (TICKER_Y0 + TICKER_Y1) / 2), ticker, font=tick_font,
+              fill=GOLD, anchor="mm")
 
     return img
 
